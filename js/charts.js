@@ -96,12 +96,12 @@ function renderStructuraChart(canvasId, bilantData) {
   chartInstances[canvasId] = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: ['Capital Propriu','Datorii Curente','Alte Datorii'],
+      labels: ['Capital Propriu','Datorii pe Termen Scurt','Datorii pe Termen Lung'],
       datasets: [{
         data: [
           Math.max(0, latest.capitalPropriu),
           Math.max(0, latest.datoriiCurente),
-          Math.max(0, latest.datoriiTotale - latest.datoriiCurente)
+          Math.max(0, latest.datoriiTermenLung || 0)
         ],
         backgroundColor: ['rgba(99,102,241,0.8)','rgba(239,68,68,0.7)','rgba(245,158,11,0.7)'],
         borderWidth: 0

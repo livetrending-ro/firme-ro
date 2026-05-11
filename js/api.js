@@ -12,7 +12,20 @@ const RAILWAY_URL = window.FIRME_API_URL || null;
 
 const ANAF_BASE = 'https://webservicesp.anaf.ro';
 
-// Cache simplu localStorage
+// Cache simplu localStorage cu versioning
+const CACHE_VERSION = 2; // Incrementează la orice schimbare de parsare
+(function checkCacheVersion() {
+  try {
+    const v = parseInt(localStorage.getItem('firme_cache_v') || '0');
+    if (v < CACHE_VERSION) {
+      // Invalidează cache-ul vechi cu indicatori greșiți
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('firme_bilant_') || k.startsWith('firme_gen_')) localStorage.removeItem(k);
+      });
+      localStorage.setItem('firme_cache_v', String(CACHE_VERSION));
+    }
+  } catch {}
+})();
 const cache = {
   get(key) { try { const d = localStorage.getItem('firme_'+key); return d ? JSON.parse(d) : null; } catch { return null; } },
   set(key, val, ttl=3600000) { try { localStorage.setItem('firme_'+key, JSON.stringify({val, exp: Date.now()+ttl})); } catch {} },
@@ -107,32 +120,23 @@ function parseIndicatori(items) {
   items.forEach(item => { map[item.indicator] = parseFloat(item.val_indicator) || 0; });
 
   return {
-    // Cifra de afaceri
-    cifraAfaceri: map['I2'] || map['CA'] || 0,
-    // Profit net
-    profitNet: map['I13'] || map['PN'] || 0,
-    // Total active
-    totalActive: map['I1'] || map['TA'] || 0,
-    // Capitaluri proprii
-    capitalPropriu: map['I10'] || map['CP'] || 0,
-    // Datorii totale
-    datoriiTotale: map['I6'] || map['DT'] || 0,
-    // Numar angajati
-    nrAngajati: map['I17'] || map['NA'] || 0,
-    // Active circulante
-    activeCirculante: map['I3'] || 0,
-    // Stocuri
-    stocuri: map['I4'] || 0,
-    // Creante
-    creante: map['I5'] || 0,
-    // Casa si conturi
-    casaConturi: map['I7'] || 0,
-    // Datorii sub 1 an
-    datoriiCurente: map['I8'] || 0,
-    // Cheltuieli totale
-    cheltuieliTotale: map['I12'] || 0,
-    // Venituri totale
-    venituriTotale: map['I11'] || 0,
+    cifraAfaceri: map['I13'] || 0,
+    profitNet: map['I16'] || 0,
+    totalActive: map['I7'] || 0,
+    capitalPropriu: map['I18'] || 0,
+    datoriiTotale: (map['I4'] || 0) + (map['I8'] || 0),
+    nrAngajati: map['I20'] || 0,
+    activeImobilizate: map['I1'] || 0,
+    activeCirculante: map['I2'] || 0,
+    datoriiCurente: map['I4'] || 0,
+    datoriiTermenLung: map['I8'] || 0,
+    stocuri: 0,
+    creante: 0,
+    casaConturi: 0,
+    venituriTotale: map['I14'] || 0,
+    cheltuieliTotale: map['I15'] || 0,
+    profitExploatare: map['I17'] || 0,
+    capitalSocial: map['I19'] || 0,
     raw: map
   };
 }
