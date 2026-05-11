@@ -356,7 +356,12 @@ async function addToWatchlist() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Eroare la adăugare.');
     
-    alert('✅ Firmă adăugată la favorite cu succes!');
+    // Visual feedback on success
+    const btn = document.getElementById('btnFavorite');
+    if (btn) {
+      btn.classList.add('added');
+      btn.innerHTML = '<span class="btn-fav-icon">✅</span> Salvat la Favorite';
+    }
   } catch (err) {
     alert(err.message);
   }

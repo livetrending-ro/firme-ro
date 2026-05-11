@@ -63,8 +63,10 @@
             <span class="badge badge-blue" id="firmaTVA" style="display:none">TVA</span>
           </div>
           <div class="firma-meta" id="firmaMeta"></div>
-          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" onclick="addToWatchlist()">🔔 Monitorizare</button>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-fav" onclick="addToWatchlist()" id="btnFavorite">
+              <span class="btn-fav-icon">⭐</span> Salvează la Favorite
+            </button>
             <button class="btn btn-ghost btn-sm" onclick="addToCompare()">📊 Compară</button>
             <button class="btn btn-ghost btn-sm" onclick="exportPDF()">📄 Export PDF</button>
             <a id="onrcLink" href="#" target="_blank" class="btn btn-ghost btn-sm">🔗 ONRC</a>
