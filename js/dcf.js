@@ -207,8 +207,12 @@ const DCF = {
       const rev = Math.abs(b.cifraAfaceri || b.cifra_afaceri || 0);
       revenues.push(rev);
 
-      // EBIT = profit din exploatare
-      const operatingProfit = b.profitExploatare || b.profit_exploatare || 0;
+      // EBIT = profit din exploatare, fallback to profitNet / (1 - taxRate) as proxy
+      let operatingProfit = b.profitExploatare || b.profit_exploatare || 0;
+      if (operatingProfit === 0 && (b.profitNet || b.profit_net)) {
+        // Approximate EBIT from net profit (gross up by 16% tax rate)
+        operatingProfit = (b.profitNet || b.profit_net || 0) / 0.84;
+      }
       ebit.push(operatingProfit);
 
       // D&A - estimate as ~4% of revenue if not available

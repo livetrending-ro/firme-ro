@@ -380,13 +380,19 @@
                             </tr>
                         </thead>
                         <tbody>
-                            ${bilantData.sort((a,b) => a.an - b.an).map(b => `
+                            ${bilantData.sort((a,b) => a.an - b.an).map(b => {
+                                const pe = b.profitExploatare || 0;
+                                const pn = b.profitNet || 0;
+                                const profitVal = pe !== 0 ? pe : pn;
+                                const profitLabel = pe !== 0 ? '' : ' (net)';
+                                return `
                             <tr>
                                 <td>${b.an}</td>
                                 <td>${fmtRON(Math.abs(b.cifraAfaceri || 0))}</td>
-                                <td>${fmtRON(b.profitExploatare || 0)}</td>
+                                <td>${fmtRON(profitVal)}${profitLabel}</td>
                                 <td>${fmtRON(Math.abs(b.totalActive || 0))}</td>
-                            </tr>`).join('')}
+                            </tr>`;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
