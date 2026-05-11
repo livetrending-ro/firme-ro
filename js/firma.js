@@ -34,7 +34,16 @@ async function loadFirma(cui) {
     loadBilant(cui);
 
   } catch (err) {
-    showError(err.message || 'Eroare la încărcarea datelor.');
+    let msg = err.message || 'Eroare la încărcarea datelor.';
+    // Detectează eroarea de protocol file://
+    if (msg.includes('Failed to fetch') || msg.includes('fetch') || msg.includes('NetworkError')) {
+      if (window.location.protocol === 'file:') {
+        msg = 'Deschide site-ul dintr-un server HTTP (nu direct din fișier). Folosește Live Server în VS Code sau accesează versiunea online.';
+      } else {
+        msg = 'Eroare de conexiune. Verifică internetul și încearcă din nou.';
+      }
+    }
+    showError(msg);
   }
 }
 

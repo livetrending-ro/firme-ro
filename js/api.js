@@ -21,7 +21,8 @@ const cache = {
 
 /**
  * Obţine date generale despre o firmă după CUI
- * Endpoint: POST /PlatitorTvaRest/api/v8/ws/tva
+ * Dacă RAILWAY_URL e setat → proxy Railway → ANAF
+ * Dacă nu → direct ANAF din browser (funcționează din HTTP, nu file://)
  */
 async function getDateGenerale(cui) {
   cui = String(cui).replace(/\D/g, '');
@@ -29,30 +30,49 @@ async function getDateGenerale(cui) {
   const cached = cache.read(cacheKey);
   if (cached) return cached;
 
-  let data;
+  let data = null;
+  let lastError = '';
+
   if (RAILWAY_URL) {
-    // Încearcă via backend Railway
+    // Toate requesturile merg PRIN Railway (proxy CORS complet)
     try {
-      const res = await fetch(`${RAILWAY_URL}/api/firma/${cui}`);
+      const res = await fetch(`${RAILWAY_URL}/api/firma/${cui}`, {
+        signal: AbortSignal.timeout(15000)
+      });
       const json = await res.json();
-      if (res.ok && json.data) { data = json.data; }
-      else if (json.fallback) { /* cade la ANAF direct */ }
-      else throw new Error(json.error || `Eroare server: ${res.status}`);
-    } catch {}
+      if (res.ok && json.data) {
+        data = json.data;
+      } else if (json.fallback) {
+        lastError = 'Backend indisponibil temporar';
+      } else {
+        lastError = json.error || `Eroare ${res.status}`;
+      }
+    } catch (e) {
+      lastError = `Conexiune eșuată: ${e.message}`;
+    }
+  }
+
+  if (!data && !RAILWAY_URL) {
+    // Direct ANAF — funcționează DOAR din HTTP (nu file://)
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const res = await fetch(`${ANAF_BASE}/PlatitorTvaRest/api/v8/ws/tva`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([{ cui: parseInt(cui), data: today }]),
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!res.ok) throw new Error(`ANAF status ${res.status}`);
+      const json = await res.json();
+      if (!json.found?.length) throw new Error('CUI negăsit în ANAF');
+      data = json.found[0];
+    } catch (e) {
+      lastError = e.message;
+    }
   }
 
   if (!data) {
-    // Direct la ANAF din browser (CORS permis)
-    const today = new Date().toISOString().split('T')[0];
-    const res = await fetch(`${ANAF_BASE}/PlatitorTvaRest/api/v8/ws/tva`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify([{ cui: parseInt(cui), data: today }])
-    });
-    if (!res.ok) throw new Error(`ANAF TVA error: ${res.status}`);
-    const json = await res.json();
-    if (!json.found || json.found.length === 0) throw new Error('CUI negăsit în baza de date ANAF');
-    data = json.found[0];
+    throw new Error(lastError || 'Date indisponibile. Verifică conexiunea sau încearcă mai târziu.');
   }
 
   cache.set(cacheKey, data);
@@ -61,7 +81,6 @@ async function getDateGenerale(cui) {
 
 /**
  * Obţine bilanţurile pentru ultimii N ani
- * Endpoint: GET /bilant/rest/bilant.php?an=YYYY&cui=XXXXXXX
  */
 async function getBilant(cui, ani = null) {
   cui = String(cui).replace(/\D/g, '');
@@ -72,13 +91,22 @@ async function getBilant(cui, ani = null) {
   if (cached) return cached;
 
   let results = [];
+
   if (RAILWAY_URL) {
-    const res = await fetch(`${RAILWAY_URL}/api/bilant/${cui}`);
-    if (res.ok) { const json = await res.json(); results = json.data || []; }
+    // Prin Railway proxy
+    try {
+      const res = await fetch(`${RAILWAY_URL}/api/bilant/${cui}`, {
+        signal: AbortSignal.timeout(30000)
+      });
+      if (res.ok) { const json = await res.json(); results = json.data || []; }
+    } catch {}
   } else {
+    // Direct ANAF din browser (HTTP only)
     for (const an of yearsToFetch) {
       try {
-        const res = await fetch(`${ANAF_BASE}/bilant/rest/bilant.php?an=${an}&cui=${cui}`);
+        const res = await fetch(`${ANAF_BASE}/bilant/rest/bilant.php?an=${an}&cui=${cui}`, {
+          signal: AbortSignal.timeout(8000)
+        });
         if (!res.ok) continue;
         const json = await res.json();
         if (json?.i?.length > 0) results.push({ an, ...parseIndicatori(json.i) });
@@ -90,6 +118,7 @@ async function getBilant(cui, ani = null) {
   cache.set(cacheKey, results, 86400000);
   return results;
 }
+
 
 /**
  * Parsează lista indicatori financiari din răspunsul ANAF
