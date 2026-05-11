@@ -50,9 +50,9 @@
                     <tr>
                         <th data-sort="symbol">Simbol <span class="sort-icon">↕</span></th>
                         <th data-sort="name">Denumire <span class="sort-icon">↕</span></th>
-                        <th data-sort="price" style="text-align:right">Preț (RON) <span class="sort-icon">↕</span></th>
-                        <th data-sort="change" style="text-align:right">Variație % <span class="sort-icon">↕</span></th>
-                        <th data-sort="volume" style="text-align:right">Volum <span class="sort-icon">↕</span></th>
+                        <th data-sort="market">Piața <span class="sort-icon">↕</span></th>
+                        <th data-sort="category">Categorie <span class="sort-icon">↕</span></th>
+                        <th data-sort="shares" style="text-align:right">Acțiuni <span class="sort-icon">↕</span></th>
                         <th style="text-align:center">Analiză DCF</th>
                     </tr>
                 </thead>
@@ -95,44 +95,65 @@
 
     async function loadBVBData() {
         try {
-            // 1. Load static company registry
-            const regRes = await fetch('data/bvb-companies.json');
-            bvbCompanies = await regRes.json();
+            // 1. Load static company registry as fallback
+            let staticCompanies = [];
+            try {
+                const regRes = await fetch('data/bvb-companies.json');
+                staticCompanies = await regRes.json();
+            } catch { console.warn('Static BVB registry not loaded'); }
 
-            // 2. Try to get live BVB data from backend
+            // 2. Try to get live BVB data from backend (CSV parsed)
             let liveData = null;
             try {
-                const liveRes = await fetch(`${BVB_API}/api/bvb/shares`, { signal: AbortSignal.timeout(10000) });
+                const liveRes = await fetch(`${BVB_API}/api/bvb/shares`, { signal: AbortSignal.timeout(15000) });
                 const liveJson = await liveRes.json();
-                if (liveJson.data) liveData = liveJson.data;
+                if (liveJson.data && liveJson.data.length > 0) liveData = liveJson.data;
             } catch (e) {
-                console.warn('BVB live data unavailable, using static registry:', e.message);
+                console.warn('BVB live data unavailable:', e.message);
             }
 
-            // 3. Merge static + live data
-            stockData = bvbCompanies
-                .filter(c => c.cui && c.cui !== '0')
-                .map(company => {
-                    // Try to find matching live data by symbol
-                    let live = null;
-                    if (liveData) {
-                        live = liveData.find(l => {
-                            const sym = (l.Symbol || l.Simbol || l.symbol || '').toUpperCase();
-                            return sym === company.symbol;
-                        });
-                    }
-                    
-                    return {
+            // 3. Build stock data — prefer live BVB CSV (has CUI + shares)
+            if (liveData) {
+                stockData = liveData
+                    .filter(l => l['Stare'] === 'Tranzactionabila')
+                    .map(l => {
+                        const cui = (l['Cod Fiscal / CUI'] || '').replace(/\D/g, '');
+                        const symbol = l['Simbol'] || '';
+                        // Try to find extra info from static registry
+                        const staticMatch = staticCompanies.find(s => s.symbol === symbol);
+                        return {
+                            symbol: symbol,
+                            name: l['Emitent'] || l['Denumire emisiune'] || symbol,
+                            cui: cui,
+                            isin: l['ISIN'] || '',
+                            shares: parseInt((l['Actiuni'] || '0').replace(/\D/g, '')) || (staticMatch?.shares || 0),
+                            market: l['Piata Principala'] || '',
+                            category: l['Categoria'] || '',
+                            judet: l['Judet'] || '',
+                            price: 0, // Will be fetched per-instrument
+                            change: 0,
+                            volume: 0,
+                        };
+                    })
+                    .filter(s => s.cui && s.cui.length >= 3);
+            } else {
+                // Fallback to static registry
+                stockData = staticCompanies
+                    .filter(c => c.cui && c.cui !== '0')
+                    .map(company => ({
                         symbol: company.symbol,
                         name: company.name,
                         cui: company.cui,
                         isin: company.isin,
                         shares: company.shares || 0,
-                        price: live ? parseFloat(live['Pret referinta'] || live['Pret'] || live.Price || 0) : 0,
-                        change: live ? parseFloat(live['Var(%)'] || live['Variatie'] || live.Change || 0) : 0,
-                        volume: live ? parseInt(live['Volum'] || live.Volume || 0) : 0,
-                    };
-                });
+                        market: 'REGS',
+                        category: '',
+                        judet: '',
+                        price: 0,
+                        change: 0,
+                        volume: 0,
+                    }));
+            }
 
             renderTable();
         } catch (err) {
@@ -174,25 +195,24 @@
 
         let html = '';
         for (const s of filtered) {
-            const changeClass = s.change > 0 ? 'change-positive' : (s.change < 0 ? 'change-negative' : 'change-neutral');
-            const changeSign = s.change > 0 ? '+' : '';
             const isExpanded = expandedRow === s.symbol;
+            const marketBadge = s.market === 'REGS' ? '🔵' : (s.market === 'MTS' ? '🟢' : '⚪');
 
             html += `
-            <tr onclick="toggleDCF('${s.symbol}')" class="${isExpanded ? 'expanded' : ''}">
+            <tr onclick="toggleDCF('${s.symbol}')" class="${isExpanded ? 'expanded' : ''}" style="cursor:pointer;">
                 <td><span class="symbol-badge">${s.symbol}</span></td>
                 <td>
                     <div style="font-weight:600;">${s.name}</div>
-                    <div style="font-size:0.75rem;color:var(--text-muted);">CUI: ${s.cui}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);">CUI: ${s.cui}${s.judet ? ' · ' + s.judet : ''}</div>
                 </td>
-                <td style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums;">
-                    ${s.price > 0 ? s.price.toFixed(4) : '—'}
+                <td>
+                    <span style="font-size:0.82rem;">${marketBadge} ${s.market || '—'}</span>
                 </td>
-                <td style="text-align:right">
-                    <span class="${changeClass}">${s.price > 0 ? changeSign + s.change.toFixed(2) + '%' : '—'}</span>
+                <td style="font-size:0.85rem;color:var(--text-secondary);">
+                    ${s.category || '—'}
                 </td>
-                <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);">
-                    ${s.volume > 0 ? s.volume.toLocaleString('ro-RO') : '—'}
+                <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-secondary);font-size:0.85rem;">
+                    ${s.shares > 0 ? s.shares.toLocaleString('ro-RO') : '—'}
                 </td>
                 <td style="text-align:center">
                     <button onclick="event.stopPropagation();toggleDCF('${s.symbol}')" 
