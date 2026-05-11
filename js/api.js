@@ -32,8 +32,6 @@ async function getDateGenerale(cui) {
   if (cached) return cached;
 
   let data = null;
-  let needsDirectFallback = !RAILWAY_URL; // dacă nu e Railway, merge direct
-
   if (RAILWAY_URL) {
     try {
       const res = await fetch(`${RAILWAY_URL}/api/firma/${cui}`, {
@@ -42,39 +40,15 @@ async function getDateGenerale(cui) {
       const json = await res.json();
       if (res.ok && json.data) {
         data = json.data;
-      } else if (json.fallback || res.status === 503) {
-        // Railway nu poate accesa ANAF server-side — frontend face direct
-        needsDirectFallback = true;
+      } else {
+        throw new Error(json.error || 'Firma nu a putut fi găsită sau serviciul ANAF este indisponibil.');
       }
-    } catch {
-      needsDirectFallback = true;
-    }
-  }
-
-  if (!data && needsDirectFallback) {
-    // Direct la ANAF din browser — CORS permis, dar necesită HTTP (nu file://)
-    if (window.location.protocol === 'file:') {
-      throw new Error('Deschide site-ul de pe un server HTTP. Rulează: node serve.js și accesează http://localhost:8080');
-    }
-    const today = new Date().toISOString().split('T')[0];
-    try {
-      const res = await fetch(`${ANAF_BASE}/PlatitorTvaRest/api/v8/ws/tva`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([{ cui: parseInt(cui), data: today }]),
-        signal: AbortSignal.timeout(12000)
-      });
-      if (!res.ok) throw new Error(`ANAF status ${res.status}`);
-      const json = await res.json();
-      if (!json.found?.length && !json.notFound?.length) throw new Error('Răspuns ANAF invalid');
-      if (!json.found?.length) throw new Error('CUI negăsit în baza de date ANAF');
-      data = json.found[0];
     } catch (e) {
-      if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
-        throw new Error('Eroare de conexiune la ANAF. Verifică internetul și încearcă din nou.');
-      }
-      throw e;
+      if (e.name === 'AbortError') throw new Error('Timpul de așteptare a expirat. Încearcă din nou.');
+      throw new Error(e.message || 'Eroare de conexiune la serverul proxy.');
     }
+  } else {
+    throw new Error('API-ul backend nu este configurat. Căutarea necesită serverul proxy activ.');
   }
 
   if (!data) throw new Error('Date indisponibile momentan. Încearcă din nou.');
