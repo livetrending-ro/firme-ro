@@ -227,4 +227,21 @@
   .bvb-hero h1 { font-size: 1.5rem; }
   .stock-table { font-size: 0.82rem; }
   .stock-table th, .stock-table td { padding: 8px 10px; }
+  /* Hide less important columns on mobile */
+  .stock-table th:nth-child(3),
+  .stock-table td:nth-child(3),
+  .stock-table th:nth-child(4),
+  .stock-table td:nth-child(4),
+  .stock-table th:nth-child(5),
+  .stock-table td:nth-child(5) { display: none; }
 }
+
+@media (max-width: 480px) {
+  .bvb-hero { padding: 1.5rem 1rem; }
+  .bvb-hero p { font-size: 0.85rem; }
+  .dcf-result-card { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .dcf-verdict-value { font-size: 1.4rem; }
+}
+
+/* Bottom spacing */
+main.container { padding-bottom: 3rem; }
