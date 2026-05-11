@@ -1,3 +1,5 @@
+const API_BASE_URL = 'https://firme-ro-api-production.up.railway.app/api';
+
 const Auth = {
   getToken() {
     return localStorage.getItem('firmero_token');
