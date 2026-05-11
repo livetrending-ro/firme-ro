@@ -33,6 +33,9 @@ async function loadFirma(cui) {
     // Încarcă bilanțuri async
     loadBilant(cui);
 
+    // Încarcă date extinse (administratori, detalii ONRC) async
+    loadExtendedData(cui);
+
   } catch (err) {
     let msg = err.message || 'Eroare la încărcarea datelor.';
     // Detectează eroarea de protocol file://
@@ -363,6 +366,116 @@ function showError(msg) {
   document.getElementById('errorState').style.display = 'block';
   document.getElementById('firmaContent').style.display = 'none';
   document.getElementById('errorMsg').textContent = msg;
+}
+
+// ── EXTENDED DATA (FirmeAPI.ro) ───────────────────────────
+async function loadExtendedData(cui) {
+  // Load both in parallel
+  const [detalii, adminData] = await Promise.all([
+    FirmeAPI.getDetalii(cui).catch(() => null),
+    FirmeAPI.getAdministratori(cui).catch(() => null)
+  ]);
+
+  // Enrich general tab with ONRC details
+  if (detalii) {
+    renderDetaliiONRC(detalii);
+  }
+
+  // Render administrators
+  renderAdministratori(adminData);
+}
+
+function renderDetaliiONRC(d) {
+  const grid = document.getElementById('fiscalGrid');
+  if (!grid) return;
+
+  // Add extra ONRC fields
+  const extraItems = [];
+  if (d.nr_reg_com) extraItems.push({ label: 'Nr. Registrul Comerțului', value: d.nr_reg_com });
+  if (d.cod_caen) extraItems.push({ label: 'Cod CAEN Principal', value: d.cod_caen });
+  if (d.organ_fiscal) extraItems.push({ label: 'Organ Fiscal Competent', value: d.organ_fiscal });
+  if (d.forma_organizare) extraItems.push({ label: 'Formă Organizare', value: d.forma_organizare });
+  if (d.stare) extraItems.push({ label: 'Stare Înregistrare (ONRC)', value: d.stare });
+  if (d.tva && typeof d.tva.platitor !== 'undefined') {
+    extraItems.push({ label: 'Plătitor TVA (ONRC)', value: d.tva.platitor ? '✅ Da' : '❌ Nu' });
+  }
+  if (d.adresa_sediu_social) {
+    const a = d.adresa_sediu_social;
+    const adresaStr = [a.strada, a.numar ? `Nr. ${a.numar}` : '', a.localitate, a.judet].filter(Boolean).join(', ');
+    if (adresaStr) extraItems.push({ label: 'Sediu Social (ONRC)', value: adresaStr });
+  }
+
+  if (extraItems.length > 0) {
+    grid.innerHTML += extraItems.map(i => `
+      <div class="info-item">
+        <div class="info-label">${i.label}</div>
+        <div class="info-value">${i.value}</div>
+      </div>`).join('');
+  }
+}
+
+function renderAdministratori(data) {
+  const container = document.getElementById('adminInfo');
+  if (!container) return;
+
+  if (!data || !data.administratori || data.administratori.length === 0) {
+    container.innerHTML = `
+      <p style="color:var(--text-muted);font-size:.9rem">
+        Datele despre administratori nu sunt disponibile momentan.<br>
+        Verifică la <a href="https://www.onrc.ro/index.php/ro/servicii-online" target="_blank">portalul ONRC</a>.
+      </p>`;
+    return;
+  }
+
+  const admins = data.administratori;
+  const activi = admins.filter(a => a.stare === 'Activ');
+  const inactivi = admins.filter(a => a.stare !== 'Activ');
+
+  let html = '';
+
+  // Summary bar
+  html += `<div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">`;
+  html += `<div style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(16,185,129,.1);border-radius:20px;font-size:.85rem;color:#10b981;font-weight:600">● ${activi.length} Activ${activi.length !== 1 ? 'i' : ''}</div>`;
+  if (inactivi.length > 0) {
+    html += `<div style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(239,68,68,.1);border-radius:20px;font-size:.85rem;color:#ef4444;font-weight:600">● ${inactivi.length} Inactiv${inactivi.length !== 1 ? 'i' : ''}</div>`;
+  }
+  if (data.nr_reg_com) {
+    html += `<div style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(99,102,241,.1);border-radius:20px;font-size:.85rem;color:#6366f1;font-weight:600">📋 ${data.nr_reg_com}</div>`;
+  }
+  html += `</div>`;
+
+  // Admin cards
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">`;
+  admins.forEach(admin => {
+    const isActiv = admin.stare === 'Activ';
+    const borderColor = isActiv ? 'rgba(16,185,129,.3)' : 'rgba(239,68,68,.15)';
+    const dotColor = isActiv ? '#10b981' : '#ef4444';
+    const bgColor = isActiv ? 'rgba(16,185,129,.04)' : 'rgba(239,68,68,.04)';
+    const tipIcon = admin.tip === 'Persoană Fizică' ? '👤' : '🏢';
+
+    html += `
+      <div style="border:1px solid ${borderColor};border-radius:12px;padding:16px;background:${bgColor};transition:transform .2s" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform='none'">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="font-size:1.5rem">${tipIcon}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;color:var(--text-primary);font-size:.95rem">${admin.nume}</div>
+            <div style="font-size:.8rem;color:var(--text-muted)">${admin.tip || 'Persoană Fizică'}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;font-size:.75rem;font-weight:600;color:${dotColor}">
+            <span style="width:8px;height:8px;border-radius:50%;background:${dotColor};display:inline-block"></span>
+            ${admin.stare || '—'}
+          </div>
+        </div>
+        ${admin.data ? `<div style="font-size:.78rem;color:var(--text-muted);margin-top:4px">📅 Actualizat: ${admin.data}</div>` : ''}
+      </div>`;
+  });
+  html += `</div>`;
+
+  if (data.actualizat_la) {
+    html += `<div style="font-size:.75rem;color:var(--text-muted);margin-top:14px;text-align:right">Sursa: ONRC via FirmeAPI.ro · Actualizat: ${new Date(data.actualizat_la).toLocaleDateString('ro-RO')}</div>`;
+  }
+
+  container.innerHTML = html;
 }
 
 // Nav search

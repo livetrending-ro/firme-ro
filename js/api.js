@@ -219,9 +219,65 @@ async function cautaFirme(query) {
   return localResults;
 }
 
+/**
+ * Obține detalii extinse ONRC (via FirmeAPI.ro)
+ * Returnează: nr_reg_com, cod_caen, stare, organ_fiscal, forma_organizare, tva, status_inactiv
+ */
+async function getDetalii(cui) {
+  cui = String(cui).replace(/\D/g, '');
+  if (!RAILWAY_URL) return null;
+
+  const cacheKey = `detalii_${cui}`;
+  const cached = cache.read(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const res = await fetch(`${RAILWAY_URL}/api/detalii/${cui}`, {
+      signal: AbortSignal.timeout(10000)
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.data) {
+        cache.set(cacheKey, json.data, 3600000);
+        return json.data;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Obține lista administratorilor firmei (via FirmeAPI.ro)
+ * Returnează: { administratori: [{nume, tip, stare, data}], denumire, nr_reg_com, stare, adresa }
+ */
+async function getAdministratori(cui) {
+  cui = String(cui).replace(/\D/g, '');
+  if (!RAILWAY_URL) return null;
+
+  const cacheKey = `admin_${cui}`;
+  const cached = cache.read(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const res = await fetch(`${RAILWAY_URL}/api/administratori/${cui}`, {
+      signal: AbortSignal.timeout(10000)
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.data) {
+        cache.set(cacheKey, json.data, 21600000); // 6h
+        return json.data;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 // Exporturi globale
 window.FirmeAPI = {
   getDateGenerale,
+  getDetalii,
+  getAdministratori,
   getBilant,
   calcRiskScore,
   formatCurrency,
