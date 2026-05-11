@@ -87,6 +87,19 @@
     let currentSort = { key: 'symbol', asc: true };
     let expandedRow = null;
 
+    // Simple in-memory client cache
+    const cache = {
+        _store: {},
+        read(key) {
+            const entry = this._store[key];
+            if (!entry || Date.now() > entry.exp) { delete this._store[key]; return null; }
+            return entry.val;
+        },
+        set(key, val, ttlMs) {
+            this._store[key] = { val, exp: Date.now() + ttlMs };
+        }
+    };
+
     document.addEventListener('DOMContentLoaded', async () => {
         await loadBVBData();
         setupSearch();
