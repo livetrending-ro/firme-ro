@@ -1,0 +1,230 @@
+/* bvb.css — BVB Stock Exchange page styles */
+
+/* Hero section */
+.bvb-hero {
+  background: linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(99,102,241,0.06) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+.bvb-hero h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+.bvb-hero p { color: var(--text-muted); font-size: 0.95rem; max-width: 600px; margin: 0 auto; }
+
+/* Search/filter */
+.bvb-controls {
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+  padding: 1rem 0; margin-bottom: 1rem;
+}
+.bvb-search {
+  flex: 1; min-width: 200px;
+  padding: 10px 16px; border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card); color: var(--text-primary);
+  font-size: 0.95rem; font-family: inherit;
+  transition: border-color 0.2s;
+}
+.bvb-search:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+.bvb-search::placeholder { color: var(--text-muted); }
+
+/* Stock table */
+.stock-table-wrap {
+  overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.stock-table th {
+  position: sticky; top: 0; z-index: 2;
+  background: rgba(99,102,241,0.08);
+  padding: 12px 14px; text-align: left;
+  font-weight: 700; font-size: 0.8rem;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border);
+  cursor: pointer; user-select: none;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.stock-table th:hover { color: var(--accent); }
+.stock-table th .sort-icon { margin-left: 4px; opacity: 0.4; }
+.stock-table th.sorted .sort-icon { opacity: 1; color: var(--accent); }
+
+.stock-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.stock-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.stock-table tbody tr:hover {
+  background: rgba(99,102,241,0.05);
+}
+.stock-table tbody tr.expanded {
+  background: rgba(99,102,241,0.08);
+}
+
+/* Symbol badge */
+.symbol-badge {
+  display: inline-block;
+  font-weight: 800; font-size: 0.85rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Price change badges */
+.change-positive {
+  color: #10b981; font-weight: 700;
+}
+.change-negative {
+  color: #ef4444; font-weight: 700;
+}
+.change-neutral {
+  color: var(--text-muted); font-weight: 600;
+}
+
+/* DCF Analysis Panel */
+.dcf-panel {
+  display: none;
+  padding: 1.5rem;
+  background: rgba(99,102,241,0.03);
+  border-top: 1px dashed rgba(99,102,241,0.15);
+  animation: dcfSlideIn 0.3s ease;
+}
+.dcf-panel.open { display: block; }
+@keyframes dcfSlideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dcf-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+/* DCF inputs panel */
+.dcf-inputs {
+  display: flex; flex-direction: column; gap: 1rem;
+}
+.dcf-input-group {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.dcf-input-group label {
+  font-size: 0.8rem; font-weight: 600;
+  color: var(--text-muted);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.dcf-input-group label span {
+  font-weight: 800; color: var(--accent);
+}
+.dcf-slider {
+  -webkit-appearance: none; width: 100%; height: 6px;
+  background: rgba(99,102,241,0.2); border-radius: 3px;
+  outline: none; transition: background 0.2s;
+}
+.dcf-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 50%; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+}
+.dcf-slider::-moz-range-thumb {
+  width: 18px; height: 18px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 50%; cursor: pointer; border: none;
+}
+
+/* DCF Results */
+.dcf-results {
+  display: flex; flex-direction: column; gap: 1rem;
+}
+.dcf-result-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.dcf-result-label {
+  font-size: 0.82rem; color: var(--text-muted); font-weight: 600;
+}
+.dcf-result-value {
+  font-size: 1.1rem; font-weight: 800;
+}
+
+/* Verdict card */
+.dcf-verdict {
+  padding: 1.25rem;
+  border-radius: 14px;
+  text-align: center;
+  border: 2px solid;
+  margin-top: 0.5rem;
+}
+.dcf-verdict-label {
+  font-size: 0.85rem; opacity: 0.7; margin-bottom: 0.25rem;
+}
+.dcf-verdict-value {
+  font-size: 1.8rem; font-weight: 900;
+}
+.dcf-verdict-upside {
+  font-size: 1.1rem; font-weight: 700; margin-top: 0.25rem;
+}
+
+/* FCF Projection Mini-Table */
+.dcf-projection-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 0.82rem; margin-top: 1rem;
+}
+.dcf-projection-table th {
+  padding: 6px 8px; text-align: right;
+  font-weight: 700; font-size: 0.75rem;
+  color: var(--text-muted); border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+}
+.dcf-projection-table th:first-child { text-align: left; }
+.dcf-projection-table td {
+  padding: 6px 8px; text-align: right;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.dcf-projection-table td:first-child { text-align: left; font-weight: 600; }
+
+/* Loading state */
+.dcf-loading {
+  text-align: center; padding: 2rem; color: var(--text-muted);
+}
+.dcf-loading .spinner {
+  width: 32px; height: 32px; margin: 0 auto 1rem;
+  border: 3px solid rgba(99,102,241,0.2);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Disclaimer */
+.bvb-disclaimer {
+  margin-top: 2rem; padding: 1rem 1.5rem;
+  background: rgba(245,158,11,0.06);
+  border: 1px solid rgba(245,158,11,0.15);
+  border-radius: 10px;
+  font-size: 0.82rem; color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dcf-grid { grid-template-columns: 1fr; }
+  .bvb-hero h1 { font-size: 1.5rem; }
+  .stock-table { font-size: 0.82rem; }
+  .stock-table th, .stock-table td { padding: 8px 10px; }
+}

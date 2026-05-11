@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BVB — Firme Listate la Bursă | FirmeRO</title>
+    <meta name="description" content="Vezi toate firmele românești listate la Bursa de Valori București (BVB) cu prețuri, variații și analiză DCF pentru evaluarea profitabilității.">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/bvb.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="navbar-inner">
+            <a href="index.html" class="navbar-brand">
+                <div class="brand-icon">🏢</div>
+                Firme<span class="brand-dot">RO</span>
+            </a>
+            <button class="navbar-toggle" onclick="document.querySelector('.navbar-nav').classList.toggle('open')" aria-label="Meniu">☰</button>
+            <nav class="navbar-nav">
+                <a href="index.html">Acasă</a>
+                <a href="comparare.html">Comparare</a>
+                <a href="harta.html">Hartă</a>
+                <a href="statistici.html">Statistici</a>
+                <a href="bvb.html" class="active">📈 BVB</a>
+                <div class="auth-links" style="display: flex; gap: 1rem; align-items: center; margin-left: 1rem;"></div>
+            </nav>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="bvb-hero">
+        <h1>📈 Bursa de Valori București</h1>
+        <p>Toate firmele listate pe Piața Principală BVB cu analiză DCF (Discounted Cash Flow) pentru evaluarea valorii intrinsece</p>
+    </section>
+
+    <main class="container" style="padding: 1.5rem;">
+        <!-- Controls -->
+        <div class="bvb-controls">
+            <input type="text" class="bvb-search" id="bvbSearch" placeholder="🔍 Caută simbol sau denumire firmă..." autocomplete="off">
+            <span id="bvbCount" style="color:var(--text-muted);font-size:0.85rem;white-space:nowrap;"></span>
+        </div>
+
+        <!-- Stocks Table -->
+        <div class="stock-table-wrap">
+            <table class="stock-table" id="stockTable">
+                <thead>
+                    <tr>
+                        <th data-sort="symbol">Simbol <span class="sort-icon">↕</span></th>
+                        <th data-sort="name">Denumire <span class="sort-icon">↕</span></th>
+                        <th data-sort="price" style="text-align:right">Preț (RON) <span class="sort-icon">↕</span></th>
+                        <th data-sort="change" style="text-align:right">Variație % <span class="sort-icon">↕</span></th>
+                        <th data-sort="volume" style="text-align:right">Volum <span class="sort-icon">↕</span></th>
+                        <th style="text-align:center">Analiză DCF</th>
+                    </tr>
+                </thead>
+                <tbody id="stockTableBody">
+                    <tr><td colspan="6" style="text-align:center;padding:3rem;color:var(--text-muted);">
+                        <div class="dcf-loading"><div class="spinner"></div>Se încarcă datele BVB...</div>
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Disclaimer -->
+        <div class="bvb-disclaimer">
+            ⚠️ <strong>Disclaimer:</strong> Datele de tranzacționare sunt preluate public de pe bvb.ro cu întârziere de 15 minute. 
+            Analiza DCF este un model matematic simplificat bazat pe bilanțurile publice ANAF și <strong>nu constituie sfat de investiții</strong>. 
+            Rezultatele sunt orientative — consultă un specialist financiar autorizat înainte de orice decizie de investiții.
+        </div>
+    </main>
+
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/dcf.js"></script>
+    <script>
+    // ==========================================
+    // BVB Page Logic
+    // ==========================================
+    
+    // API_BASE_URL is defined in auth.js
+    const BVB_API = API_BASE_URL.replace(/\/api\/?$/, '');
+    let bvbCompanies = [];
+    let stockData = [];
+    let currentSort = { key: 'symbol', asc: true };
+    let expandedRow = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadBVBData();
+        setupSearch();
+        setupSort();
+    });
+
+    async function loadBVBData() {
+        try {
+            // 1. Load static company registry
+            const regRes = await fetch('data/bvb-companies.json');
+            bvbCompanies = await regRes.json();
+
+            // 2. Try to get live BVB data from backend
+            let liveData = null;
+            try {
+                const liveRes = await fetch(`${BVB_API}/api/bvb/shares`, { signal: AbortSignal.timeout(10000) });
+                const liveJson = await liveRes.json();
+                if (liveJson.data) liveData = liveJson.data;
+            } catch (e) {
+                console.warn('BVB live data unavailable, using static registry:', e.message);
+            }
+
+            // 3. Merge static + live data
+            stockData = bvbCompanies
+                .filter(c => c.cui && c.cui !== '0')
+                .map(company => {
+                    // Try to find matching live data by symbol
+                    let live = null;
+                    if (liveData) {
+                        live = liveData.find(l => {
+                            const sym = (l.Symbol || l.Simbol || l.symbol || '').toUpperCase();
+                            return sym === company.symbol;
+                        });
+                    }
+                    
+                    return {
+                        symbol: company.symbol,
+                        name: company.name,
+                        cui: company.cui,
+                        isin: company.isin,
+                        shares: company.shares || 0,
+                        price: live ? parseFloat(live['Pret referinta'] || live['Pret'] || live.Price || 0) : 0,
+                        change: live ? parseFloat(live['Var(%)'] || live['Variatie'] || live.Change || 0) : 0,
+                        volume: live ? parseInt(live['Volum'] || live.Volume || 0) : 0,
+                    };
+                });
+
+            renderTable();
+        } catch (err) {
+            console.error('Failed to load BVB data:', err);
+            document.getElementById('stockTableBody').innerHTML = `
+                <tr><td colspan="6" style="text-align:center;padding:2rem;color:#ef4444;">
+                    ❌ Eroare la încărcarea datelor BVB: ${err.message}
+                </td></tr>`;
+        }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('stockTableBody');
+        const search = (document.getElementById('bvbSearch').value || '').toLowerCase();
+        
+        let filtered = stockData.filter(s => 
+            s.symbol.toLowerCase().includes(search) || 
+            s.name.toLowerCase().includes(search) ||
+            s.cui.includes(search)
+        );
+
+        // Sort
+        filtered.sort((a, b) => {
+            let va = a[currentSort.key];
+            let vb = b[currentSort.key];
+            if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+            if (va < vb) return currentSort.asc ? -1 : 1;
+            if (va > vb) return currentSort.asc ? 1 : -1;
+            return 0;
+        });
+
+        document.getElementById('bvbCount').textContent = `${filtered.length} companii`;
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted);">
+                Nicio companie găsită</td></tr>`;
+            return;
+        }
+
+        let html = '';
+        for (const s of filtered) {
+            const changeClass = s.change > 0 ? 'change-positive' : (s.change < 0 ? 'change-negative' : 'change-neutral');
+            const changeSign = s.change > 0 ? '+' : '';
+            const isExpanded = expandedRow === s.symbol;
+
+            html += `
+            <tr onclick="toggleDCF('${s.symbol}')" class="${isExpanded ? 'expanded' : ''}">
+                <td><span class="symbol-badge">${s.symbol}</span></td>
+                <td>
+                    <div style="font-weight:600;">${s.name}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);">CUI: ${s.cui}</div>
+                </td>
+                <td style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums;">
+                    ${s.price > 0 ? s.price.toFixed(4) : '—'}
+                </td>
+                <td style="text-align:right">
+                    <span class="${changeClass}">${s.price > 0 ? changeSign + s.change.toFixed(2) + '%' : '—'}</span>
+                </td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);">
+                    ${s.volume > 0 ? s.volume.toLocaleString('ro-RO') : '—'}
+                </td>
+                <td style="text-align:center">
+                    <button onclick="event.stopPropagation();toggleDCF('${s.symbol}')" 
+                            style="background:rgba(99,102,241,0.1);color:var(--accent);border:1px solid rgba(99,102,241,0.2);padding:5px 14px;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:700;font-family:inherit;transition:all 0.2s;"
+                            onmouseover="this.style.background='rgba(99,102,241,0.2)'"
+                            onmouseout="this.style.background='rgba(99,102,241,0.1)'">
+                        ${isExpanded ? '▲ Închide' : '📊 DCF'}
+                    </button>
+                </td>
+            </tr>`;
+
+            if (isExpanded) {
+                html += `<tr><td colspan="6" class="dcf-panel open" id="dcf-panel-${s.symbol}">
+                    <div class="dcf-loading"><div class="spinner"></div>Se încarcă datele financiare...</div>
+                </td></tr>`;
+            }
+        }
+        
+        tbody.innerHTML = html;
+
+        // If a row is expanded, load its DCF data
+        if (expandedRow) {
+            loadDCFForSymbol(expandedRow);
+        }
+    }
+
+    function toggleDCF(symbol) {
+        expandedRow = expandedRow === symbol ? null : symbol;
+        renderTable();
+    }
+
+    async function loadDCFForSymbol(symbol) {
+        const panel = document.getElementById(`dcf-panel-${symbol}`);
+        if (!panel) return;
+
+        const company = stockData.find(s => s.symbol === symbol);
+        if (!company) return;
+
+        try {
+            // Fetch ANAF bilanț data
+            const bilantData = await getBilantMultiAn(company.cui, 5);
+            
+            if (!bilantData || bilantData.length === 0) {
+                panel.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--text-muted);">
+                    ⚠️ Nu s-au găsit date financiare ANAF pentru CUI ${company.cui}.<br>
+                    <a href="firma.html?cui=${company.cui}" style="color:var(--accent);margin-top:0.5rem;display:inline-block;">
+                        Vezi profil complet →
+                    </a>
+                </div>`;
+                return;
+            }
+
+            // Extract DCF inputs from ANAF data
+            const dcfInputs = DCF.extractFromBilant(bilantData);
+            if (!dcfInputs) {
+                panel.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--text-muted);">
+                    ⚠️ Datele financiare sunt insuficiente pentru analiza DCF.</div>`;
+                return;
+            }
+
+            // Try to get live price if we don't have it
+            let price = company.price;
+            let shares = company.shares;
+            if (!price || price === 0) {
+                try {
+                    const instrRes = await fetch(`${BVB_API}/api/bvb/instrument/${symbol}`, { signal: AbortSignal.timeout(8000) });
+                    const instrJson = await instrRes.json();
+                    if (instrJson.data) {
+                        price = instrJson.data.price || 0;
+                        if (instrJson.data.shares > 0) shares = instrJson.data.shares;
+                    }
+                } catch {}
+            }
+
+            // Initial DCF calculation
+            const initialParams = {
+                ...dcfInputs,
+                sharesOutstanding: shares || 1,
+                currentPrice: price,
+                wacc: 0.12,
+                terminalGrowth: 0.03,
+                taxRate: 0.16,
+                forecastYears: 5
+            };
+
+            const result = DCF.calculate(initialParams);
+
+            renderDCFPanel(panel, symbol, company, result, initialParams, bilantData);
+
+        } catch (err) {
+            console.error(`DCF error for ${symbol}:`, err);
+            panel.innerHTML = `<div style="text-align:center;padding:1.5rem;color:#ef4444;">
+                ❌ Eroare la calculul DCF: ${err.message}</div>`;
+        }
+    }
+
+    function renderDCFPanel(panel, symbol, company, result, params, bilantData) {
+        const fmtPct = (v) => (v * 100).toFixed(1) + '%';
+        const fmtRON = (v) => DCF.formatRON(v);
+
+        panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h3 style="margin:0;font-size:1.1rem;">📊 Analiză DCF — ${company.name} (${symbol})</h3>
+            <a href="firma.html?cui=${company.cui}" style="color:var(--accent);font-size:0.85rem;font-weight:600;text-decoration:none;">
+                Vezi profil complet →
+            </a>
+        </div>
+        
+        <div class="dcf-grid">
+            <!-- Inputs -->
+            <div class="dcf-inputs">
+                <h4 style="margin:0 0 0.5rem;font-size:0.9rem;color:var(--text-muted);">⚙️ Parametri Model</h4>
+                
+                <div class="dcf-input-group">
+                    <label>Creștere Venituri (CAGR) <span id="val-growth-${symbol}">${fmtPct(result.inputs.revenueGrowth)}</span></label>
+                    <input type="range" class="dcf-slider" id="slider-growth-${symbol}" 
+                           min="-10" max="50" step="0.5" value="${(result.inputs.revenueGrowth * 100).toFixed(1)}"
+                           oninput="recalcDCF('${symbol}')">
+                </div>
+                
+                <div class="dcf-input-group">
+                    <label>WACC (Rata de Discount) <span id="val-wacc-${symbol}">${fmtPct(params.wacc)}</span></label>
+                    <input type="range" class="dcf-slider" id="slider-wacc-${symbol}" 
+                           min="5" max="25" step="0.5" value="${(params.wacc * 100).toFixed(1)}"
+                           oninput="recalcDCF('${symbol}')">
+                </div>
+                
+                <div class="dcf-input-group">
+                    <label>Marjă EBIT <span id="val-margin-${symbol}">${fmtPct(result.inputs.ebitMargin)}</span></label>
+                    <input type="range" class="dcf-slider" id="slider-margin-${symbol}" 
+                           min="1" max="60" step="0.5" value="${(result.inputs.ebitMargin * 100).toFixed(1)}"
+                           oninput="recalcDCF('${symbol}')">
+                </div>
+                
+                <div class="dcf-input-group">
+                    <label>Creștere Terminală <span id="val-tgrowth-${symbol}">${fmtPct(params.terminalGrowth)}</span></label>
+                    <input type="range" class="dcf-slider" id="slider-tgrowth-${symbol}" 
+                           min="0" max="6" step="0.5" value="${(params.terminalGrowth * 100).toFixed(1)}"
+                           oninput="recalcDCF('${symbol}')">
+                </div>
+
+                <!-- Historical Data Mini-Table -->
+                <div style="margin-top:0.5rem;">
+                    <h4 style="margin:0 0 0.5rem;font-size:0.85rem;color:var(--text-muted);">📋 Date Istorice ANAF</h4>
+                    <table class="dcf-projection-table">
+                        <thead>
+                            <tr>
+                                <th>An</th>
+                                <th>Cifra Afaceri</th>
+                                <th>Profit Exploatare</th>
+                                <th>Active Totale</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${bilantData.sort((a,b) => a.an - b.an).map(b => `
+                            <tr>
+                                <td>${b.an}</td>
+                                <td>${fmtRON(Math.abs(b.cifra_afaceri || b.I13 || 0))}</td>
+                                <td>${fmtRON(b.profit_exploatare || b.I17 || 0)}</td>
+                                <td>${fmtRON(Math.abs(b.total_active || b.I7 || 0))}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="dcf-results" id="dcf-results-${symbol}">
+                ${renderDCFResults(result, symbol)}
+            </div>
+        </div>
+        `;
+
+        // Store params for recalc
+        panel.dataset.params = JSON.stringify(params);
+    }
+
+    function renderDCFResults(result, symbol) {
+        const fmtRON = (v) => DCF.formatRON(v);
+        const fmtPct = (v) => (v * 100).toFixed(1) + '%';
+        const changeSign = result.upside > 0 ? '+' : '';
+
+        return `
+        <h4 style="margin:0 0 0.5rem;font-size:0.9rem;color:var(--text-muted);">📈 Rezultate Evaluare</h4>
+        
+        <!-- Verdict -->
+        <div class="dcf-verdict" style="border-color:${result.verdictColor};background:${result.verdictColor}10;">
+            <div class="dcf-verdict-label" style="color:${result.verdictColor}">Evaluare</div>
+            <div class="dcf-verdict-value" style="color:${result.verdictColor}">${result.verdict}</div>
+            <div class="dcf-verdict-upside" style="color:${result.verdictColor}">
+                ${changeSign}${fmtPct(result.upside)} vs prețul curent
+            </div>
+        </div>
+
+        <div class="dcf-result-card">
+            <span class="dcf-result-label">Enterprise Value</span>
+            <span class="dcf-result-value">${fmtRON(result.enterpriseValue)}</span>
+        </div>
+        <div class="dcf-result-card">
+            <span class="dcf-result-label">Equity Value</span>
+            <span class="dcf-result-value">${fmtRON(result.equityValue)}</span>
+        </div>
+        <div class="dcf-result-card">
+            <span class="dcf-result-label">Fair Value / Acțiune</span>
+            <span class="dcf-result-value" style="color:var(--accent);">${result.fairValuePerShare.toFixed(4)} RON</span>
+        </div>
+        <div class="dcf-result-card">
+            <span class="dcf-result-label">Preț Curent BVB</span>
+            <span class="dcf-result-value">${result.currentPrice > 0 ? result.currentPrice.toFixed(4) + ' RON' : 'N/A'}</span>
+        </div>
+        <div class="dcf-result-card">
+            <span class="dcf-result-label">Datorie Netă</span>
+            <span class="dcf-result-value">${fmtRON(result.netDebt)}</span>
+        </div>
+
+        <!-- Projected FCF Table -->
+        <table class="dcf-projection-table">
+            <thead>
+                <tr><th>An</th><th>Venituri</th><th>EBIT</th><th>FCF</th><th>PV(FCF)</th></tr>
+            </thead>
+            <tbody>
+                ${result.projections.map(p => `
+                <tr>
+                    <td>Anul ${p.year}</td>
+                    <td>${fmtRON(p.revenue)}</td>
+                    <td>${fmtRON(p.ebit)}</td>
+                    <td>${fmtRON(p.fcf)}</td>
+                    <td>${fmtRON(p.pv)}</td>
+                </tr>`).join('')}
+                <tr style="font-weight:700;border-top:2px solid var(--border);">
+                    <td>Terminal</td>
+                    <td colspan="2"></td>
+                    <td>${fmtRON(result.terminalValue)}</td>
+                    <td>${fmtRON(result.pvTerminal)}</td>
+                </tr>
+            </tbody>
+        </table>
+        `;
+    }
+
+    function recalcDCF(symbol) {
+        const panel = document.getElementById(`dcf-panel-${symbol}`);
+        if (!panel) return;
+        
+        const params = JSON.parse(panel.dataset.params || '{}');
+        
+        // Read slider values
+        const growth = parseFloat(document.getElementById(`slider-growth-${symbol}`).value) / 100;
+        const wacc = parseFloat(document.getElementById(`slider-wacc-${symbol}`).value) / 100;
+        const margin = parseFloat(document.getElementById(`slider-margin-${symbol}`).value) / 100;
+        const tgrowth = parseFloat(document.getElementById(`slider-tgrowth-${symbol}`).value) / 100;
+
+        // Update labels
+        document.getElementById(`val-growth-${symbol}`).textContent = (growth * 100).toFixed(1) + '%';
+        document.getElementById(`val-wacc-${symbol}`).textContent = (wacc * 100).toFixed(1) + '%';
+        document.getElementById(`val-margin-${symbol}`).textContent = (margin * 100).toFixed(1) + '%';
+        document.getElementById(`val-tgrowth-${symbol}`).textContent = (tgrowth * 100).toFixed(1) + '%';
+
+        // Recalculate
+        const result = DCF.calculate({
+            ...params,
+            revenueGrowth: growth,
+            wacc: wacc,
+            ebitMargin: margin,
+            terminalGrowth: tgrowth,
+        });
+
+        // Update results only
+        const resultsEl = document.getElementById(`dcf-results-${symbol}`);
+        if (resultsEl) {
+            resultsEl.innerHTML = renderDCFResults(result, symbol);
+        }
+    }
+
+    // Multi-year bilanț fetch
+    async function getBilantMultiAn(cui, years) {
+        const currentYear = new Date().getFullYear();
+        const results = [];
+        
+        for (let y = currentYear - 1; y >= currentYear - years; y--) {
+            try {
+                const data = await getBilant(cui, y);
+                if (data) {
+                    data.an = y;
+                    results.push(data);
+                }
+            } catch {}
+        }
+        
+        return results;
+    }
+
+    async function getBilant(cui, an) {
+        cui = String(cui).replace(/\D/g, '');
+        const cacheKey = `bilant_${cui}_${an}`;
+        const cached = cache.read(cacheKey);
+        if (cached) return cached;
+
+        const url = `${BVB_API}/api/bilant/${cui}/${an}`;
+        try {
+            const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+            const json = await res.json();
+            if (res.ok && json.data) {
+                cache.set(cacheKey, json.data, 24 * 3600000);
+                return json.data;
+            }
+        } catch {}
+        return null;
+    }
+
+    function setupSearch() {
+        document.getElementById('bvbSearch').addEventListener('input', () => {
+            expandedRow = null;
+            renderTable();
+        });
+    }
+
+    function setupSort() {
+        document.querySelectorAll('.stock-table th[data-sort]').forEach(th => {
+            th.addEventListener('click', () => {
+                const key = th.dataset.sort;
+                if (currentSort.key === key) {
+                    currentSort.asc = !currentSort.asc;
+                } else {
+                    currentSort = { key, asc: true };
+                }
+                // Update sort indicators
+                document.querySelectorAll('.stock-table th').forEach(t => t.classList.remove('sorted'));
+                th.classList.add('sorted');
+                th.querySelector('.sort-icon').textContent = currentSort.asc ? '↑' : '↓';
+                
+                renderTable();
+            });
+        });
+    }
+    </script>
+</body>
+</html>
