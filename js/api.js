@@ -21,8 +21,9 @@ const cache = {
 
 /**
  * Obţine date generale despre o firmă după CUI
- * Dacă RAILWAY_URL e setat → proxy Railway → ANAF
- * Dacă nu → direct ANAF din browser (funcționează din HTTP, nu file://)
+ * Strategie:
+ *  1. Railway proxy (dacă configurat) → dacă returnează fallback:true →
+ *  2. Direct ANAF din browser (funcționează din HTTP, nu file://)
  */
 async function getDateGenerale(cui) {
   cui = String(cui).replace(/\D/g, '');
@@ -31,49 +32,52 @@ async function getDateGenerale(cui) {
   if (cached) return cached;
 
   let data = null;
-  let lastError = '';
+  let needsDirectFallback = !RAILWAY_URL; // dacă nu e Railway, merge direct
 
   if (RAILWAY_URL) {
-    // Toate requesturile merg PRIN Railway (proxy CORS complet)
     try {
       const res = await fetch(`${RAILWAY_URL}/api/firma/${cui}`, {
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(12000)
       });
       const json = await res.json();
       if (res.ok && json.data) {
         data = json.data;
-      } else if (json.fallback) {
-        lastError = 'Backend indisponibil temporar';
-      } else {
-        lastError = json.error || `Eroare ${res.status}`;
+      } else if (json.fallback || res.status === 503) {
+        // Railway nu poate accesa ANAF server-side — frontend face direct
+        needsDirectFallback = true;
       }
-    } catch (e) {
-      lastError = `Conexiune eșuată: ${e.message}`;
+    } catch {
+      needsDirectFallback = true;
     }
   }
 
-  if (!data && !RAILWAY_URL) {
-    // Direct ANAF — funcționează DOAR din HTTP (nu file://)
+  if (!data && needsDirectFallback) {
+    // Direct la ANAF din browser — CORS permis, dar necesită HTTP (nu file://)
+    if (window.location.protocol === 'file:') {
+      throw new Error('Deschide site-ul de pe un server HTTP. Rulează: node serve.js și accesează http://localhost:8080');
+    }
+    const today = new Date().toISOString().split('T')[0];
     try {
-      const today = new Date().toISOString().split('T')[0];
       const res = await fetch(`${ANAF_BASE}/PlatitorTvaRest/api/v8/ws/tva`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify([{ cui: parseInt(cui), data: today }]),
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(12000)
       });
       if (!res.ok) throw new Error(`ANAF status ${res.status}`);
       const json = await res.json();
-      if (!json.found?.length) throw new Error('CUI negăsit în ANAF');
+      if (!json.found?.length && !json.notFound?.length) throw new Error('Răspuns ANAF invalid');
+      if (!json.found?.length) throw new Error('CUI negăsit în baza de date ANAF');
       data = json.found[0];
     } catch (e) {
-      lastError = e.message;
+      if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+        throw new Error('Eroare de conexiune la ANAF. Verifică internetul și încearcă din nou.');
+      }
+      throw e;
     }
   }
 
-  if (!data) {
-    throw new Error(lastError || 'Date indisponibile. Verifică conexiunea sau încearcă mai târziu.');
-  }
+  if (!data) throw new Error('Date indisponibile momentan. Încearcă din nou.');
 
   cache.set(cacheKey, data);
   return data;
@@ -93,15 +97,16 @@ async function getBilant(cui, ani = null) {
   let results = [];
 
   if (RAILWAY_URL) {
-    // Prin Railway proxy
     try {
       const res = await fetch(`${RAILWAY_URL}/api/bilant/${cui}`, {
         signal: AbortSignal.timeout(30000)
       });
       if (res.ok) { const json = await res.json(); results = json.data || []; }
     } catch {}
-  } else {
-    // Direct ANAF din browser (HTTP only)
+  }
+
+  // Dacă Railway nu a dat rezultate (fallback sau fără Railway) → direct ANAF
+  if (!results.length && window.location.protocol !== 'file:') {
     for (const an of yearsToFetch) {
       try {
         const res = await fetch(`${ANAF_BASE}/bilant/rest/bilant.php?an=${an}&cui=${cui}`, {
