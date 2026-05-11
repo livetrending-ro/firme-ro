@@ -6,6 +6,7 @@ let currentCUI = null;
 let bilantData = [];
 let dateGenerale = null;
 let riskData = null;
+let leafletMap = null;
 
 // ── INIT ──────────────────────────────────────────────────
 (async function init() {
@@ -108,10 +109,10 @@ function initLeafletMap(d) {
   try {
     const mapEl = document.getElementById('firmaMap');
     mapEl.innerHTML = '';
-    const map = L.map('firmaMap', { zoomControl: true }).setView([45.75, 24.5], 6);
+    leafletMap = L.map('firmaMap', { zoomControl: true }).setView([45.75, 24.5], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap'
-    }).addTo(map);
+    }).addTo(leafletMap);
 
     // Geocodare cu Nominatim
     fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(d.adresa+', Romania')}&limit=1`)
@@ -119,8 +120,8 @@ function initLeafletMap(d) {
       .then(results => {
         if (results && results[0]) {
           const { lat, lon } = results[0];
-          map.setView([lat, lon], 15);
-          L.marker([lat, lon]).addTo(map)
+          leafletMap.setView([lat, lon], 15);
+          L.marker([lat, lon]).addTo(leafletMap)
             .bindPopup(`<b>${d.denumire}</b><br>${d.adresa}`).openPopup();
         }
       }).catch(() => {});
@@ -309,6 +310,11 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(c => {
     c.classList.toggle('active', c.id === `tab-${tabId}`);
   });
+
+  // Leaflet needs invalidateSize when its container becomes visible
+  if (tabId === 'locatie' && leafletMap) {
+    setTimeout(() => { leafletMap.invalidateSize(); }, 200);
+  }
 }
 
 // ── EXPORT CSV ────────────────────────────────────────────
