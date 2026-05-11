@@ -114,17 +114,63 @@ function initLeafletMap(d) {
       attribution: '© OpenStreetMap'
     }).addTo(leafletMap);
 
-    // Geocodare cu Nominatim
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(d.adresa+', Romania')}&limit=1`)
-      .then(r => r.json())
-      .then(results => {
-        if (results && results[0]) {
-          const { lat, lon } = results[0];
-          leafletMap.setView([lat, lon], 15);
-          L.marker([lat, lon]).addTo(leafletMap)
-            .bindPopup(`<b>${d.denumire}</b><br>${d.adresa}`).openPopup();
-        }
-      }).catch(() => {});
+    // Clean ANAF-style address for better Nominatim geocoding
+    function cleanAddress(addr) {
+      return addr
+        .replace(/\bMUN\.\s*/gi, '')
+        .replace(/\bMUNICIPIUL\s*/gi, '')
+        .replace(/\bJUD\.\s*/gi, '')
+        .replace(/\bJUDEȚUL\s*/gi, '')
+        .replace(/\bSTR\.\s*/gi, 'Strada ')
+        .replace(/\bNR\.\s*/gi, '')
+        .replace(/\bBL\.\s*/gi, '')
+        .replace(/\bSC\.\s*/gi, '')
+        .replace(/\bET\.\s*/gi, '')
+        .replace(/\bAP\.\s*/gi, '')
+        .replace(/\bSECTOR\s*/gi, 'Sector ')
+        .replace(/,\s*,/g, ',')
+        .replace(/,\s*$/g, '')
+        .trim();
+    }
+
+    function placeMarker(lat, lon) {
+      leafletMap.setView([lat, lon], 16);
+      L.marker([lat, lon]).addTo(leafletMap)
+        .bindPopup(`<b>${d.denumire}</b><br>${d.adresa}`).openPopup();
+    }
+
+    async function tryGeocode(query) {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=ro`);
+      const results = await res.json();
+      return (results && results[0]) ? results[0] : null;
+    }
+
+    // Build fallback queries from most specific to least
+    const cleaned = cleanAddress(d.adresa);
+    const parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
+    
+    // Extract city/locality for fallbacks
+    const loc = d.localitate || '';
+    const jud = d.judet || '';
+    
+    const queries = [
+      cleaned + ', Romania',                                           // full cleaned address
+      parts.slice(0, 3).join(', ') + ', Romania',                      // first 3 parts
+      (loc ? loc + ', ' : '') + (jud ? jud + ', ' : '') + 'Romania',   // city + county
+      jud ? jud + ', Romania' : null                                   // just county
+    ].filter(Boolean);
+
+    (async () => {
+      for (const q of queries) {
+        try {
+          const hit = await tryGeocode(q);
+          if (hit) {
+            placeMarker(parseFloat(hit.lat), parseFloat(hit.lon));
+            return;
+          }
+        } catch {}
+      }
+    })();
   } catch {}
 }
 
