@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contul Meu - FirmeRO</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .favorite-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .favorite-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .favorite-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-color);
+            text-decoration: none;
+        }
+        .favorite-title:hover {
+            color: var(--primary-color);
+        }
+        .favorite-cui {
+            font-size: 0.875rem;
+            color: var(--text-light);
+            background: #f1f5f9;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+        .note-section {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+        .note-textarea {
+            width: 100%;
+            min-height: 60px;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: inherit;
+            resize: vertical;
+            margin-bottom: 0.5rem;
+        }
+        .action-btns {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+        .btn-save {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .btn-delete {
+            background: #fee2e2;
+            color: #dc2626;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .btn-save:hover { background: var(--secondary-color); }
+        .btn-delete:hover { background: #fecaca; }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+    <header class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <i class="fas fa-building"></i> FirmeRO
+            </a>
+            <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">Căutare</a>
+                <a href="harta.html" class="nav-link">Hartă</a>
+                <a href="comparare.html" class="nav-link">Comparare</a>
+                <a href="statistici.html" class="nav-link">Statistici</a>
+                <div class="auth-links" style="display: flex; gap: 1rem; align-items: center;"></div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container" style="max-width: 800px; margin-top: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h1>Firme Favorite</h1>
+            <span id="favorites-count" style="background: var(--primary-color); color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 500;">0 / 20</span>
+        </div>
+
+        <div id="favorites-list">
+            <div style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
+        </div>
+    </main>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        document.querySelector('.mobile-menu-btn').addEventListener('click', () => {
+            document.querySelector('.nav-links').classList.toggle('active');
+        });
+
+        if (!Auth.isAuthenticated()) {
+            window.location.href = 'login.html';
+        }
+
+        async function fetchFavorites() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/favorites`, {
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+                if (!res.ok) {
+                    if (res.status === 401 || res.status === 403) Auth.logout();
+                    throw new Error('Eroare la încărcarea favoritelor');
+                }
+                const json = await res.json();
+                renderFavorites(json.data);
+            } catch (err) {
+                document.getElementById('favorites-list').innerHTML = `<div class="empty-state" style="color:#dc2626">${err.message}</div>`;
+            }
+        }
+
+        function renderFavorites(favorites) {
+            document.getElementById('favorites-count').textContent = `${favorites.length} / 20`;
+            const list = document.getElementById('favorites-list');
+            
+            if (favorites.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open fa-3x" style="margin-bottom: 1rem; color: #cbd5e1;"></i>
+                        <p>Nu ai salvat nicio firmă la favorite.</p>
+                        <a href="index.html" class="search-btn" style="display: inline-flex; margin-top: 1rem; text-decoration: none;">Caută Firme</a>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = favorites.map(f => `
+                <div class="favorite-card" id="fav-${f.id}">
+                    <div class="favorite-header">
+                        <div>
+                            <a href="firma.html?cui=${f.cui}" class="favorite-title">${f.denumire || 'Firmă Necunoscută'}</a>
+                            <div style="margin-top: 0.25rem;">
+                                <span class="favorite-cui">CUI: ${f.cui}</span>
+                                <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 0.5rem;">Adăugată pe: ${new Date(f.created_at).toLocaleDateString('ro-RO')}</span>
+                            </div>
+                        </div>
+                        <button onclick="deleteFavorite(${f.id}, '${f.cui}')" class="btn-delete" title="Șterge din favorite">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="note-section">
+                        <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem;">Notițe personale:</label>
+                        <textarea class="note-textarea" id="note-${f.id}" placeholder="Adaugă detalii, contacte, sau observații despre această firmă...">${f.notita || ''}</textarea>
+                        <div class="action-btns">
+                            <button onclick="saveNote(${f.id})" class="btn-save" id="save-btn-${f.id}">
+                                <i class="fas fa-save"></i> Salvează Notița
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function saveNote(id) {
+            const notita = document.getElementById(`note-${id}`).value;
+            const btn = document.getElementById(`save-btn-${id}`);
+            const originalText = btn.innerHTML;
+            
+            try {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Se salvează...';
+                btn.disabled = true;
+
+                const res = await fetch(`${API_BASE_URL}/favorites/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${Auth.getToken()}`
+                    },
+                    body: JSON.stringify({ notita })
+                });
+
+                if (!res.ok) throw new Error('Eroare la salvare');
+                
+                btn.innerHTML = '<i class="fas fa-check"></i> Salvat';
+                btn.style.background = '#10b981';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.style.background = '';
+                    btn.disabled = false;
+                }, 2000);
+            } catch (err) {
+                alert(err.message);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function deleteFavorite(id, cui) {
+            if (!confirm(`Ești sigur că vrei să ștergi firma cu CUI ${cui} din favorite?`)) return;
+            
+            try {
+                const res = await fetch(`${API_BASE_URL}/favorites/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!res.ok) throw new Error('Eroare la ștergere');
+                
+                document.getElementById(`fav-${id}`).remove();
+                
+                // Update count
+                const countSpan = document.getElementById('favorites-count');
+                let count = parseInt(countSpan.textContent.split('/')[0]);
+                countSpan.textContent = `${count - 1} / 20`;
+                
+                if (count - 1 === 0) fetchFavorites(); // re-render empty state
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        // Init
+        fetchFavorites();
+    </script>
+</body>
+</html>

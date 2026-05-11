@@ -326,17 +326,34 @@ function exportCSV() {
 
 function exportPDF() { window.print(); }
 
-function addToWatchlist() {
-  try {
-    let list = JSON.parse(localStorage.getItem('firme_watchlist') || '[]');
-    if (!list.find(f => f.cui === currentCUI)) {
-      list.push({ cui: currentCUI, denumire: dateGenerale?.denumire, addedAt: Date.now() });
-      localStorage.setItem('firme_watchlist', JSON.stringify(list));
-      alert('✅ Firmă adăugată la lista de monitorizare!');
-    } else {
-      alert('Firma este deja monitorizată.');
+async function addToWatchlist() {
+  if (!Auth.isAuthenticated()) {
+    if (confirm('Trebuie să fii autentificat pentru a adăuga firme la favorite. Mergi la pagina de login?')) {
+      window.location.href = 'login.html';
     }
-  } catch {}
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/favorites`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Auth.getToken()}`
+      },
+      body: JSON.stringify({ 
+        cui: currentCUI, 
+        denumire: dateGenerale?.denumire || '' 
+      })
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Eroare la adăugare.');
+    
+    alert('✅ Firmă adăugată la favorite cu succes!');
+  } catch (err) {
+    alert(err.message);
+  }
 }
 
 function addToCompare() {
