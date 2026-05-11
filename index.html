@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FirmeRO — Informații Gratuite Despre Firme din România</title>
+<meta name="description" content="Verifică gratuit orice firmă din România. Date financiare, bilanțuri, scor risc, acționariat. Alternativă gratuită la listafirme.ro, termene.ro și risco.ro.">
+<link rel="stylesheet" href="css/main.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="index.html" class="navbar-brand">
+      <div class="brand-icon">🏢</div>
+      Firme<span class="brand-dot">RO</span>
+    </a>
+    <nav class="navbar-nav">
+      <a href="index.html" class="active">Acasă</a>
+      <a href="comparare.html">Comparare</a>
+      <a href="harta.html">Hartă</a>
+      <a href="statistici.html">Statistici</a>
+    </nav>
+    <div class="navbar-search">
+      <svg class="search-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input id="navSearch" class="search-input" type="text" placeholder="Caută firmă sau CUI...">
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-badge">✨ 100% Gratuit &bull; Date ANAF în timp real</div>
+  <h1 class="hero-title">Informații Complete<br>Despre Orice Firmă</h1>
+  <p class="hero-subtitle">Verifică gratuit orice companie din România — date financiare, bilanțuri pe 10 ani, scor risc, acționariat și multe altele.</p>
+
+  <div class="search-box" id="heroSearch">
+    <div class="search-box-inner">
+      <svg width="20" height="20" fill="none" stroke="#6366f1" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input id="mainSearchInput" class="search-box-input" type="text"
+        placeholder="Introdu denumirea firmei sau CUI (ex: 12345678)..."
+        autocomplete="off" spellcheck="false">
+      <button class="search-box-btn" onclick="doSearch()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span>Caută</span>
+      </button>
+    </div>
+    <div class="search-dropdown" id="searchDropdown"></div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-item">
+      <div class="stat-num" id="statFirme">1.2M+</div>
+      <div class="stat-label">Firme înregistrate</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num" id="statActive">750K+</div>
+      <div class="stat-label">Firme active</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">10</div>
+      <div class="stat-label">Ani bilanțuri</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">0 RON</div>
+      <div class="stat-label">Cost utilizare</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">Live</div>
+      <div class="stat-label">Date ANAF</div>
+    </div>
+  </div>
+</section>
+
+<section class="recent-section container" id="recentSection" style="display:none">
+  <h3 style="color:var(--text-secondary);font-size:0.9rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Căutări recente</h3>
+  <div class="recent-list" id="recentList"></div>
+</section>
+
+<section class="features-section">
+  <div class="container">
+    <div class="section-header">
+      <h2 class="section-title">Tot ce ai nevoie despre o firmă</h2>
+      <p class="section-subtitle">Combinăm datele din multiple surse oficiale gratuite pentru a-ți oferi imaginea completă</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🏛️</div>
+        <h3>Date Oficiale ANAF</h3>
+        <p>CUI, denumire, adresă sediu, formă juridică, statut fiscal, plătitor TVA — date verificate în timp real.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Bilanțuri 10 Ani</h3>
+        <p>Cifră de afaceri, profit net, datorii, active, capitaluri proprii și număr angajați cu grafice interactive.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚠️</div>
+        <h3>Scor Risc Avansat</h3>
+        <p>Algoritm Altman Z-Score adaptat pentru piața românească. Probabilitate insolvență calculată automat.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <h3>Administratori & Acționari</h3>
+        <p>Structura de conducere, administratori, asociați și conexiunile dintre firme.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📈</div>
+        <h3>Indicatori Financiari</h3>
+        <p>Lichiditate, rentabilitate, îndatorare, rotația activelor — calculați automat cu interpretare vizuală.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3>Comparare Firme</h3>
+        <p>Compară simultan 2-4 companii pe toți indicatorii financiari cu grafice side-by-side.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🗺️</div>
+        <h3>Hartă Interactivă</h3>
+        <p>Vizualizează firmele pe hartă, filtrează pe județ, CAEN sau statut. Powered by OpenStreetMap.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔔</div>
+        <h3>Monitorizare Gratuită</h3>
+        <p>Urmărește firme și primește alerte la schimbări importante: insolvență, modificări statut fiscal.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="container" style="padding-bottom:60px">
+  <div class="section-header">
+    <h2 class="section-title">Caută rapid după exemple</h2>
+    <p class="section-subtitle">Testează platforma cu firme cunoscute</p>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:24px" id="quickExamples">
+    <button class="btn btn-ghost" onclick="goFirma('14215254')">🏦 BCR — CUI 14215254</button>
+    <button class="btn btn-ghost" onclick="goFirma('193680')">⛽ Petrom — CUI 193680</button>
+    <button class="btn btn-ghost" onclick="goFirma('1354300')">🛒 Carrefour RO — CUI 1354300</button>
+    <button class="btn btn-ghost" onclick="goFirma('361349')">📱 Orange RO — CUI 361349</button>
+    <button class="btn btn-ghost" onclick="goFirma('11447021')">🏪 Lidl RO — CUI 11447021</button>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <p style="margin-bottom:8px">
+      <strong style="color:var(--text-primary)">FirmeRO</strong> — Date preluate din surse publice oficiale: 
+      <a href="https://www.anaf.ro" target="_blank">ANAF</a>,
+      <a href="https://www.onrc.ro" target="_blank">ONRC</a>,
+      <a href="https://www.mfinante.gov.ro" target="_blank">Ministerul Finanțelor</a>
+    </p>
+    <p>Platformă cu scop informativ. Datele au caracter public. © 2026 FirmeRO — Utilizare 100% gratuită.</p>
+  </div>
+</footer>
+
+<script src="js/api.js"></script>
+<script src="js/search.js"></script>
+<script>
+function goFirma(cui) { window.location.href = `firma.html?cui=${cui}`; }
+function doSearch() {
+  const val = document.getElementById('mainSearchInput').value.trim();
+  if (!val) return;
+  const cui = val.replace(/\D/g,'');
+  if (cui.length >= 4) goFirma(cui);
+}
+document.getElementById('mainSearchInput').addEventListener('keydown', e => { if(e.key==='Enter') doSearch(); });
+document.getElementById('navSearch').addEventListener('keydown', e => {
+  if(e.key==='Enter') {
+    const val = e.target.value.trim().replace(/\D/g,'');
+    if(val.length>=4) goFirma(val);
+  }
+});
+initSearch('mainSearchInput','searchDropdown');
+loadRecentSearches();
+</script>
+</body>
+</html>

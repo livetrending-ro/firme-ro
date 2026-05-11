@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comparare Firme — FirmeRO</title>
+<meta name="description" content="Compară simultan 2-4 firme din România. Indicatori financiari, bilanțuri și scor risc side-by-side.">
+<link rel="stylesheet" href="css/main.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="index.html" class="navbar-brand"><div class="brand-icon">🏢</div>Firme<span class="brand-dot">RO</span></a>
+    <nav class="navbar-nav">
+      <a href="index.html">Acasă</a>
+      <a href="comparare.html" class="active">Comparare</a>
+      <a href="harta.html">Hartă</a>
+      <a href="statistici.html">Statistici</a>
+    </nav>
+  </div>
+</nav>
+
+<div class="container" style="padding:40px 20px">
+  <div class="section-header" style="text-align:left;margin-bottom:32px">
+    <h1>📊 Comparare Firme</h1>
+    <p style="color:var(--text-muted);margin-top:8px">Adaugă până la 4 firme pentru comparație side-by-side</p>
+  </div>
+
+  <!-- ADD FIRMS -->
+  <div class="card" style="margin-bottom:32px">
+    <div class="card-body">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <input id="compareInput" class="search-box-input" type="text" placeholder="Introdu CUI firmă..."
+          style="flex:1;min-width:200px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 16px;color:var(--text-primary);font-family:Inter,sans-serif"
+          onkeydown="if(event.key==='Enter') addFirmaCompare()">
+        <button class="btn btn-primary" onclick="addFirmaCompare()">+ Adaugă Firmă</button>
+        <button class="btn btn-ghost" onclick="clearAll()">🗑️ Șterge tot</button>
+      </div>
+      <div id="compareFirmsList" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px"></div>
+    </div>
+  </div>
+
+  <!-- PLACEHOLDER -->
+  <div id="comparePlaceholder" style="text-align:center;padding:60px 20px;color:var(--text-muted)">
+    <div style="font-size:4rem;margin-bottom:16px">📊</div>
+    <h3>Adaugă firme pentru a le compara</h3>
+    <p style="margin-top:8px">Introdu CUI-ul în câmpul de mai sus și apasă Enter</p>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="addQuick('14215254','BCR')">+ BCR</button>
+      <button class="btn btn-ghost btn-sm" onclick="addQuick('193680','Petrom')">+ Petrom</button>
+      <button class="btn btn-ghost btn-sm" onclick="addQuick('11447021','Lidl RO')">+ Lidl</button>
+      <button class="btn btn-ghost btn-sm" onclick="addQuick('1354300','Carrefour RO')">+ Carrefour</button>
+    </div>
+  </div>
+
+  <!-- COMPARISON TABLE -->
+  <div id="compareResults" style="display:none">
+    <div style="overflow-x:auto">
+      <table class="data-table" id="compareTable" style="min-width:600px">
+        <thead id="compareHead"></thead>
+        <tbody id="compareBody"></tbody>
+      </table>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px" id="compareCharts">
+      <div class="card"><div class="card-body"><h4 style="margin-bottom:16px">Cifră Afaceri (ultimul an)</h4><div class="chart-wrap"><canvas id="chartCompareCA"></canvas></div></div></div>
+      <div class="card"><div class="card-body"><h4 style="margin-bottom:16px">Profit Net (ultimul an)</h4><div class="chart-wrap"><canvas id="chartCompareProfit"></canvas></div></div></div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer"><div class="container"><p>© 2026 FirmeRO — Utilizare 100% gratuită</p></div></footer>
+
+<script src="js/api.js"></script>
+<script>
+const firmeData = {};
+const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444'];
+let compareChartCA, compareChartProfit;
+
+function addQuick(cui, name) {
+  document.getElementById('compareInput').value = cui;
+  addFirmaCompare();
+}
+
+async function addFirmaCompare() {
+  const input = document.getElementById('compareInput');
+  const cui = input.value.trim().replace(/\D/g,'');
+  if (!cui || cui.length < 4) { alert('Introdu un CUI valid (minim 4 cifre)'); return; }
+  if (firmeData[cui]) { alert('Firma este deja adăugată'); return; }
+  if (Object.keys(firmeData).length >= 4) { alert('Poți compara maxim 4 firme simultan'); return; }
+  input.value = '';
+
+  // Placeholder loading
+  firmeData[cui] = { loading: true };
+  renderFirmsList();
+
+  try {
+    const [gen, bilant] = await Promise.all([FirmeAPI.getDateGenerale(cui), FirmeAPI.getBilant(cui)]);
+    const risk = FirmeAPI.calcRiskScore(bilant);
+    const latest = bilant.length ? bilant[bilant.length-1] : null;
+    firmeData[cui] = { gen, bilant, risk, latest, loading: false };
+  } catch (err) {
+    delete firmeData[cui];
+    alert(`Eroare: ${err.message}`);
+  }
+  renderFirmsList();
+  renderCompareTable();
+}
+
+function removeFirma(cui) {
+  delete firmeData[cui];
+  renderFirmsList();
+  renderCompareTable();
+}
+
+function clearAll() {
+  Object.keys(firmeData).forEach(k => delete firmeData[k]);
+  renderFirmsList();
+  renderCompareTable();
+}
+
+function renderFirmsList() {
+  const list = document.getElementById('compareFirmsList');
+  const entries = Object.entries(firmeData);
+  list.innerHTML = entries.map(([cui, d], i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--radius-sm);background:${COLORS[i]}22;border:1px solid ${COLORS[i]}44">
+      <span style="width:10px;height:10px;border-radius:50%;background:${COLORS[i]};flex-shrink:0"></span>
+      <span style="font-weight:600;font-size:.88rem">${d.loading ? '⏳ CUI '+cui : (d.gen?.denumire||cui)}</span>
+      <button onclick="removeFirma('${cui}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0;font-size:14px">✕</button>
+    </div>`).join('');
+}
+
+function renderCompareTable() {
+  const entries = Object.entries(firmeData).filter(([,d]) => !d.loading);
+  const placeholder = document.getElementById('comparePlaceholder');
+  const results = document.getElementById('compareResults');
+
+  if (entries.length === 0) { placeholder.style.display='block'; results.style.display='none'; return; }
+  placeholder.style.display = 'none';
+  results.style.display = 'block';
+
+  const head = document.getElementById('compareHead');
+  const body = document.getElementById('compareBody');
+
+  head.innerHTML = `<tr><th>Indicator</th>${entries.map(([cui,d],i)=>`<th style="color:${COLORS[i]}">${d.gen?.denumire||cui}</th>`).join('')}</tr>`;
+
+  const rows = [
+    { label: 'CUI', fn: d => d.gen?.cui||'—' },
+    { label: 'Județ', fn: d => d.gen?.judet||'—' },
+    { label: 'Statut', fn: d => d.gen?.statusInactivi===0?'✅ Activă':'❌ Inactivă' },
+    { label: 'TVA', fn: d => d.gen?.scpTva==='DA'?'✅ Plătitor':'Nu' },
+    { label: '— FINANCIAR (ultimul an) —', fn: ()=>'', header: true },
+    { label: 'An bilanț', fn: d => d.latest?.an||'—' },
+    { label: 'Cifră Afaceri', fn: d => FirmeAPI.formatCurrency(d.latest?.cifraAfaceri) },
+    { label: 'Profit Net', fn: d => FirmeAPI.formatCurrency(d.latest?.profitNet), color: d => d.latest?.profitNet>=0?'#10b981':'#ef4444' },
+    { label: 'Total Active', fn: d => FirmeAPI.formatCurrency(d.latest?.totalActive) },
+    { label: 'Capital Propriu', fn: d => FirmeAPI.formatCurrency(d.latest?.capitalPropriu) },
+    { label: 'Datorii Totale', fn: d => FirmeAPI.formatCurrency(d.latest?.datoriiTotale) },
+    { label: 'Angajați', fn: d => FirmeAPI.formatNumber(d.latest?.nrAngajati) },
+    { label: 'Marjă Profit', fn: d => d.latest?.cifraAfaceri>0?((d.latest.profitNet/d.latest.cifraAfaceri*100).toFixed(1)+'%'):'—' },
+    { label: '— RISC —', fn: ()=>'', header: true },
+    { label: 'Scor Risc', fn: d => d.risk?`${d.risk.score}/100`:'—', color: d => d.risk?({low:'#10b981',med:'#f59e0b',high:'#ef4444'}[d.risk.level]):'inherit' },
+    { label: 'Nivel Risc', fn: d => d.risk?.label||'—' },
+    { label: 'Altman Z-Score', fn: d => d.risk?.z||'—' },
+  ];
+
+  body.innerHTML = rows.map(r => {
+    if (r.header) return `<tr><td colspan="${entries.length+1}" style="background:var(--bg-secondary);color:var(--text-muted);font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:8px 16px">${r.label}</td></tr>`;
+    return `<tr><td style="color:var(--text-muted);font-size:.85rem">${r.label}</td>${entries.map(([,d],i)=>`<td style="font-weight:600;color:${r.color?r.color(d):'inherit'}">${r.fn(d)}</td>`).join('')}</tr>`;
+  }).join('');
+
+  // Charts
+  renderCompareCharts(entries);
+}
+
+function renderCompareCharts(entries) {
+  if (compareChartCA) compareChartCA.destroy();
+  if (compareChartProfit) compareChartProfit.destroy();
+  const opts = { responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{ x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#94a3b8',font:{family:'Inter',size:11}}},
+              y:{grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#94a3b8',font:{family:'Inter',size:11},callback:v=>Math.abs(v)>=1e6?(v/1e6).toFixed(1)+'M':v}} } };
+
+  const labels = entries.map(([,d],i) => d.gen?.denumire||`CUI ${Object.keys(firmeData)[i]}`);
+  const caVals = entries.map(([,d]) => d.latest?.cifraAfaceri||0);
+  const profitVals = entries.map(([,d]) => d.latest?.profitNet||0);
+  const bgColors = entries.map((_,i) => COLORS[i]+'cc');
+
+  compareChartCA = new Chart(document.getElementById('chartCompareCA'), { type:'bar', data:{ labels, datasets:[{data:caVals,backgroundColor:bgColors,borderRadius:6}] }, options:opts });
+  compareChartProfit = new Chart(document.getElementById('chartCompareProfit'), { type:'bar', data:{ labels, datasets:[{data:profitVals,backgroundColor:bgColors,borderRadius:6}] }, options:opts });
+}
+
+// Preload from URL
+const params = new URLSearchParams(location.search);
+const initCui = params.get('cui');
+if (initCui) { document.getElementById('compareInput').value = initCui; addFirmaCompare(); }
+
+// Load from localStorage watchlist
+const stored = JSON.parse(localStorage.getItem('firme_compare')||'[]');
+stored.forEach(cui => { if(cui !== initCui) { document.getElementById('compareInput').value=cui; addFirmaCompare(); }});
+</script>
+</body>
+</html>
