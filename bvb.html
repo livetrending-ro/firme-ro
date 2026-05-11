@@ -350,9 +350,9 @@
                             ${bilantData.sort((a,b) => a.an - b.an).map(b => `
                             <tr>
                                 <td>${b.an}</td>
-                                <td>${fmtRON(Math.abs(b.cifra_afaceri || b.I13 || 0))}</td>
-                                <td>${fmtRON(b.profit_exploatare || b.I17 || 0)}</td>
-                                <td>${fmtRON(Math.abs(b.total_active || b.I7 || 0))}</td>
+                                <td>${fmtRON(Math.abs(b.cifraAfaceri || 0))}</td>
+                                <td>${fmtRON(b.profitExploatare || 0)}</td>
+                                <td>${fmtRON(Math.abs(b.totalActive || 0))}</td>
                             </tr>`).join('')}
                         </tbody>
                     </table>
@@ -467,40 +467,27 @@
         }
     }
 
-    // Multi-year bilanț fetch
-    async function getBilantMultiAn(cui, years) {
-        const currentYear = new Date().getFullYear();
-        const results = [];
-        
-        for (let y = currentYear - 1; y >= currentYear - years; y--) {
-            try {
-                const data = await getBilant(cui, y);
-                if (data) {
-                    data.an = y;
-                    results.push(data);
-                }
-            } catch {}
-        }
-        
-        return results;
-    }
-
-    async function getBilant(cui, an) {
+    // Multi-year bilanț fetch — single API call returns all years
+    async function getBilantMultiAn(cui, maxYears) {
         cui = String(cui).replace(/\D/g, '');
-        const cacheKey = `bilant_${cui}_${an}`;
+        const cacheKey = `bilant_all_${cui}`;
         const cached = cache.read(cacheKey);
-        if (cached) return cached;
+        if (cached) return cached.slice(-maxYears);
 
-        const url = `${BVB_API}/api/bilant/${cui}/${an}`;
         try {
-            const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+            const url = `${BVB_API}/api/bilant/${cui}`;
+            const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
             const json = await res.json();
-            if (res.ok && json.data) {
-                cache.set(cacheKey, json.data, 24 * 3600000);
-                return json.data;
+            if (res.ok && json.data && json.data.length > 0) {
+                // Sort ascending by year
+                const sorted = json.data.sort((a, b) => a.an - b.an);
+                cache.set(cacheKey, sorted, 24 * 3600000);
+                return sorted.slice(-maxYears);
             }
-        } catch {}
-        return null;
+        } catch (e) {
+            console.error('Bilant fetch error:', e.message);
+        }
+        return [];
     }
 
     function setupSearch() {

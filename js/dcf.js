@@ -203,20 +203,20 @@ const DCF = {
     let prevNWC = null;
 
     for (const b of sorted) {
-      // Revenue = cifra de afaceri neta (indicatorul I13 in raportari ANAF)
-      const rev = Math.abs(b.cifra_afaceri || b.venituri_exploatare || b.I13 || 0);
+      // Revenue = cifra de afaceri (camelCase from backend)
+      const rev = Math.abs(b.cifraAfaceri || b.cifra_afaceri || 0);
       revenues.push(rev);
 
-      // EBIT = profit din exploatare (I15)
-      const operatingProfit = b.profit_exploatare || b.I15 || 0;
+      // EBIT = profit din exploatare
+      const operatingProfit = b.profitExploatare || b.profit_exploatare || 0;
       ebit.push(operatingProfit);
 
-      // D&A - often not directly available, estimate from amortizare
-      const da = Math.abs(b.amortizare || b.cheltuieli_amortizare || 0);
+      // D&A - estimate as ~4% of revenue if not available
+      const da = Math.abs(rev * 0.04);
       depreciation.push(da);
 
       // CapEx estimate from change in fixed assets + depreciation
-      const fixedAssets = Math.abs(b.imobilizari || b.active_imobilizate || b.I1 || 0);
+      const fixedAssets = Math.abs(b.activeImobilizate || b.active_imobilizate || 0);
       if (prevFixedAssets !== null) {
         const estimatedCapex = (fixedAssets - prevFixedAssets) + da;
         capex.push(Math.max(0, estimatedCapex));
@@ -226,8 +226,8 @@ const DCF = {
       prevFixedAssets = fixedAssets;
 
       // Net Working Capital = Current Assets - Current Liabilities
-      const currentAssets = Math.abs(b.active_circulante || b.I7 || 0);
-      const currentLiabilities = Math.abs(b.datorii_curente || b.datorii_1an || b.I17 || 0);
+      const currentAssets = Math.abs(b.activeCirculante || b.active_circulante || 0);
+      const currentLiabilities = Math.abs(b.datoriiCurente || b.datorii_curente || 0);
       const nwc = currentAssets - currentLiabilities;
       if (prevNWC !== null) {
         nwcChanges.push(nwc - prevNWC);
@@ -236,9 +236,9 @@ const DCF = {
       }
       prevNWC = nwc;
 
-      // Total debt (latest year)
-      totalDebt = Math.abs(b.datorii_totale || b.datorii || b.I18 || 0);
-      cash = Math.abs(b.disponibilitati || b.casa_conturi || b.I11 || 0);
+      // Total debt & cash (latest year values)
+      totalDebt = Math.abs(b.datoriiTotale || b.datorii_totale || 0);
+      cash = Math.abs(b.casaConturi || b.disponibilitati || 0);
     }
 
     return { revenues, ebit, depreciation, capex, nwcChanges, totalDebt, cash };
